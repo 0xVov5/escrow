@@ -4,7 +4,12 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 pub struct InstantiateMsg {}
 
 #[cw_serde]
-pub enum ExecuteMsg {}
+pub enum ExecuteMsg {
+    Create{
+        id: u32,
+        receive_token_address: String
+    },
+}
 
 #[cw_serde]
 #[derive(QueryResponses)]
