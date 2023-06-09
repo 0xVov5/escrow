@@ -34,7 +34,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::Create(msg) => execute_create(deps, env, info, msg),
         ExecuteMsg::Cancel {id} => execute_cancel(deps, info, id),
-        ExecuteMsg::Approve(msg) => execute_approve(deps, env, info, msg),
+        ExecuteMsg::Approve(msg) => execute_approve(deps, info, msg),
     }
 }
 
@@ -136,7 +136,6 @@ pub fn execute_cancel(
 
 pub fn execute_approve(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     msg: ApproveMsg
 ) -> Result<Response, ContractError> {
