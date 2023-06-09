@@ -20,4 +20,13 @@ pub enum ContractError {
 
     #[error("This escrow was already cancelled")]
     AlreadyCancel {},
+
+    #[error("You must put token to get coin")]
+    TokenToGetCoin {},
+
+    #[error("Invalid amount")]
+    InvalidAmount {},
+
+    #[error("This escrow was already completed")]
+    AlreadyComplete {},
 }

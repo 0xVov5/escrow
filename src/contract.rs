@@ -5,7 +5,7 @@ use cw2::set_contract_version;
 use cw20::{Balance, Cw20ExecuteMsg, Cw20CoinVerified};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, CreateMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, CreateMsg, ApproveMsg};
 use crate::state::{ESCROWS, Escrow, GenericBalance};
 
 // version info for migration info
@@ -34,7 +34,7 @@ pub fn execute(
     match msg {
         ExecuteMsg::Create(msg) => execute_create(deps, env, info, msg),
         ExecuteMsg::Cancel {id} => execute_cancel(deps, info, id),
-        ExecuteMsg::Approve {id} => execute_cancel(deps, info, id),
+        ExecuteMsg::Approve(msg) => execute_approve(deps, env, info, msg),
     }
 }
 
@@ -118,6 +118,9 @@ pub fn execute_cancel(
     if escrow.owner != info.sender {
         return Err(ContractError::Unauthorized {})
     }
+    if escrow.is_complete {
+        return Err(ContractError::AlreadyComplete {});
+    }
     if escrow.is_cancelled {
         return Err(ContractError::AlreadyCancel {})
     }
@@ -128,6 +131,66 @@ pub fn execute_cancel(
         ("action", "cancel"),
         ("id", id.to_string().as_str()),
     ]))
+}
+
+pub fn execute_approve(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ApproveMsg
+) -> Result<Response, ContractError> {
+    let mut escrow = ESCROWS.load(deps.storage, &msg.id.to_string())?;
+    if escrow.is_complete {
+        return Err(ContractError::AlreadyComplete {});
+    }
+    if escrow.is_cancelled {
+        return Err(ContractError::AlreadyCancel {});
+    }
+
+    let balance = Balance::from(info.funds.clone());
+    let mut coin_amount = Uint128::new(0);
+    let escrow_balance = match balance {
+        Balance::Native(balance) => {
+            if let Some(coin) = balance.0.get(0) {
+                coin_amount = coin.amount;
+            }
+            GenericBalance {
+                native: balance.0,
+                cw20: vec![],
+            }
+        },
+        Balance::Cw20(token) => {
+            GenericBalance {
+                native: vec![],
+                cw20: vec![token],
+            }
+        },
+    };
+
+    let amount: Uint128 = msg.token.map(|token| token.amount).unwrap_or(Uint128::new(0));
+
+    if escrow.is_coin_escrow {
+        if amount != escrow.token_amount {
+            return Err(ContractError::InvalidAmount {});
+        }
+    } else {
+        if coin_amount != escrow.coin_amount {
+            return Err(ContractError::InvalidAmount {});
+        }
+    }
+
+    let receive_messages: Vec<SubMsg> = send_tokens(&info.sender, &escrow.balance)?;
+    let send_messages: Vec<SubMsg> = send_tokens(&escrow.owner, &escrow_balance)?;
+
+    escrow.is_complete = true;
+    ESCROWS.save(deps.storage, &msg.id.to_string(), &escrow)?;
+
+    let res = Response::new()
+    .add_attributes(vec![("action", "approve"), ("id", &msg.id.to_string())])
+    .add_submessages(receive_messages)
+    .add_submessages(send_messages);
+
+    Ok(res)
 }
 
 fn send_tokens(to: &Addr, balance: &GenericBalance) -> StdResult<Vec<SubMsg>> {
@@ -207,7 +270,7 @@ mod tests {
             }),
         };
         let msg = ExecuteMsg::Create(create.clone());
-        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+        execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     }
 
     #[test]
@@ -234,5 +297,39 @@ mod tests {
         };
         let info = mock_info(&sender, &[]);
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+    }
+
+    #[test]
+    fn approve_escrow() {
+        let mut deps = mock_dependencies();
+
+        let instantiate_msg = InstantiateMsg {};
+        let info = mock_info(&String::from("anyone"), &[]);
+        instantiate(deps.as_mut(), mock_env(), info, instantiate_msg).unwrap();
+
+        let sender = String::from("source");
+        let balance = coins(100, "tokens");
+        let info = mock_info(&sender, &balance);
+        let create = CreateMsg {
+            id: 1,
+            amount: Uint128::new(100000000000000000000),
+            token: None
+        };
+        let msg = ExecuteMsg::Create(create.clone());
+        execute(deps.as_mut(), mock_env(), info, msg.clone()).unwrap();
+
+        let receiver = String::from("receiver");
+        let receiver_info = mock_info(&receiver, &[]);
+        
+        let approve = ApproveMsg {
+            id: 1,
+            token: Some(Cw20ReceiveMsg{
+                sender: receiver,
+                amount: Uint128::new(100000000000000000000),
+                msg: to_binary(&msg).unwrap()
+            }),
+        };
+        let receiver_msg = ExecuteMsg::Approve(approve.clone());
+        execute(deps.as_mut(), mock_env(), receiver_info, receiver_msg).unwrap();
     }
 }

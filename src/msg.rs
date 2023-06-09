@@ -10,13 +10,20 @@ pub enum ExecuteMsg {
     Create(CreateMsg),
     Cancel {
         id: u32
-    }
+    },
+    Approve(ApproveMsg)
 }
 
 #[cw_serde]
 pub struct CreateMsg {
     pub id: u32,
     pub amount: Uint128,
+    pub token: Option<Cw20ReceiveMsg>
+}
+
+#[cw_serde]
+pub struct ApproveMsg {
+    pub id: u32,
     pub token: Option<Cw20ReceiveMsg>
 }
 
