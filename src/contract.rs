@@ -1,11 +1,11 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, SubMsg, WasmMsg, Addr, BankMsg};
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, SubMsg, WasmMsg, Addr, BankMsg, Storage, Order};
 use cw2::set_contract_version;
 use cw20::{Balance, Cw20ExecuteMsg, Cw20CoinVerified};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, CreateMsg, ApproveMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, CreateMsg, ApproveMsg, ListResponse};
 use crate::state::{ESCROWS, Escrow, GenericBalance};
 
 // version info for migration info
@@ -86,6 +86,7 @@ pub fn execute_create(
     };
     
     let escrow = Escrow {
+        id: msg.id,
         owner: info.sender.clone(),
         coin_amount,
         token_amount,
@@ -225,14 +226,37 @@ fn send_tokens(to: &Addr, balance: &GenericBalance) -> StdResult<Vec<SubMsg>> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(_deps: Deps, _env: Env, _msg: QueryMsg) -> StdResult<Binary> {
-    unimplemented!()
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::List {} => to_binary(&query_list(deps)?),
+        QueryMsg::Details { id } => to_binary(&query_details(deps, id)?),
+    }
+}
+
+fn query_details(deps: Deps, id: u32) -> StdResult<Escrow> {
+    let escrow = ESCROWS.load(deps.storage, &id.to_string())?;
+
+    let details = escrow;
+    Ok(details)
+}
+
+fn query_list(deps: Deps) -> StdResult<ListResponse> {
+    Ok(ListResponse {
+        escrows: all_escrow_ids(deps.storage)?,
+    })
+}
+
+/// This returns the list of ids for all registered escrows
+pub fn all_escrow_ids(storage: &dyn Storage) -> StdResult<Vec<String>> {
+    ESCROWS
+        .keys(storage, None, None, Order::Ascending)
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, coins};
+    use cosmwasm_std::{coins};
     use cw20::Cw20ReceiveMsg;
 
     use super::*;

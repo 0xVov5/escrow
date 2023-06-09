@@ -5,6 +5,7 @@ use cw20::{Cw20CoinVerified};
 
 #[cw_serde]
 pub struct Escrow {
+    pub id: u32,
     pub owner: Addr,
     pub coin_amount: Uint128,
     pub token_amount: Uint128,
