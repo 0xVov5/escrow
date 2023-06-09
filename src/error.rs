@@ -15,6 +15,9 @@ pub enum ContractError {
     #[error("Escrow id already in use")]
     AlreadyInUse {},
 
-    #[error("Invalid receive token address")]
-    InvalidReceiveTokenAddress {},
+    #[error("Invalid CW20 token address")]
+    InvalidTokenAddress {},
+
+    #[error("This escrow was already cancelled")]
+    AlreadyCancel {},
 }

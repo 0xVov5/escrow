@@ -5,13 +5,13 @@ use cw20::{Cw20CoinVerified};
 
 #[cw_serde]
 pub struct Escrow {
-    owner: Addr,
-    token1_address: Addr,
-    token1_amount: Uint128,
-    token2_address: Addr,
-    token2_amount: Uint128,
-    is_complete: bool,
-    is_cancelled: bool
+    pub owner: Addr,
+    pub coin_amount: Uint128,
+    pub token_amount: Uint128,
+    pub is_coin_escrow: bool,
+    pub is_complete: bool,
+    pub is_cancelled: bool,
+    pub balance: GenericBalance,
 }
 
 pub const ESCROWS: Map<&str, Escrow> = Map::new("escrow");
